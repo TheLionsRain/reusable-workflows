@@ -1,0 +1,85 @@
+---
+name: Deploy Ansible
+
+on:
+  workflow_call:
+    inputs:
+      RUNS_ON:
+        description: "The OS to run the job on."
+        required: true
+        type: string
+
+      ENVIRONMENT:
+        description: "The environment to run the job in."
+        required: true
+        type: string
+
+      SSH_KEY_PATH:
+        description: "Path to the SSH key opn the host."
+        required: true
+        type: string
+
+      FILES_TO_TOKENIZE:
+        description: "Files to tokenize. This is a json style array. E.g. '[\"file1.yaml\", \"file2.yaml\"]'."
+        required: false
+        type: string
+
+      INVENTORY:
+        description: "The Ansible inventory to use."
+        required: true
+        type: string
+
+      PLAYBOOK_PATH:
+        description: "Path where the Ansible playbooks are located."
+        required: true
+        type: string
+
+      PLAYBOOK:
+        description: "Ansible playbook to run."
+        required: true
+        type: string
+
+    secrets:
+      SSH_KEY:
+        description: "The SSH private key to use for the deployment."
+        required: true
+
+      TOKENS:
+        description: "A dictionary of the tokens and values that need to be filled in. E.g. '{\"test\": \"value\"}'."
+        required: true
+
+jobs:
+  deploy:
+    name: "Deploy Ansible - Playbook: ${{ inputs.PLAYBOOK }}"
+    environment: ${{ inputs.ENVIRONMENT }}
+    runs-on: ${{ inputs.RUNS_ON }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set SSH Key
+      shell: bash
+      run: |
+        mkdir \
+          -p ~/.ssh
+
+        echo "${{ secrets.SSH_KEY }}" > ${{ inputs.SSH_KEY_PATH }}
+          
+        chmod \
+          600 \
+          ${{ inputs.SSH_KEY_PATH }}
+
+    - name: Tokenize Files
+      if: ${{ inputs.FILES_TO_TOKENIZE != '' }}
+      uses: cschleiden/replace-tokens@v1.3
+      env:
+        ${{ fromJson(secrets.TOKENS || '{}') }}
+      with:
+        files: ${{ inputs.FILES_TO_TOKENIZE }}
+
+    - name: Run Deployment Playbook
+      shell: bash
+      run: |
+        ansible-playbook \
+          --inventory ${{ inputs.INVENTORY }} \
+          ${{ inputs.PLAYBOOK_PATH }}/${{ inputs.PLAYBOOK }} \
