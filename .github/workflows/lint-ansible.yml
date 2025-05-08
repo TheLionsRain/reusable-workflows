@@ -1,0 +1,66 @@
+---
+name: Lint Ansible
+
+on:
+  workflow_call:
+    inputs:
+      RUNS_ON:
+        description: 'OS to run the job on. Default is ubuntu-latest.'
+        required: false
+        default: 'ubuntu-24.04'
+        type: string
+
+      PYTHON_VERSION:
+        description: 'Python version to use. Default is 3.13.'
+        required: false
+        default: '3.13'
+        type: string
+
+      YAMLLINT_CONFIG_PATH:
+        description: 'Path to yamllint config file. Default is .yamllint.'
+        required: false
+        default: '.yamllint'
+        type: string
+
+      ANSIBLE_PATH:
+        description: 'Path to ansible directory. Default is src/ansible/ .'
+        required: false
+        default: 'src/ansible/'
+        type: string
+
+jobs:
+  lint:
+    name: Lint & Test Ansible
+    runs-on: ${{ inputs.RUNS_ON }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.PYTHON_VERSION }}
+
+    - name: Install Ansible and linters
+      run: |
+        python \
+          -m pip \
+          install \
+          --upgrade pip
+
+        pip install \
+          ansible \
+          ansible-lint \
+          yamllint
+
+    - name: Run yamllint
+      run: |
+        yamllint \
+          --config-file ${{ inputs.YAMLLINT_CONFIG_PATH }} \
+          ${{ inputs.ANSIBLE_PATH }}
+
+    - name: Run ansible-lint
+      run: |
+        ansible-lint \
+          ${{ inputs.ANSIBLE_PATH }}
