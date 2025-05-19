@@ -1,0 +1,91 @@
+---
+name: Deploy Terraform
+
+on:
+  workflow_call:
+    inputs:
+      ENVIRONMENT:
+        required: true
+        type: string
+
+      TERRAFORM_WORKING_DIRECTORY:
+        required: true
+        type: string
+
+      TERRAFORM_BACKEND:
+        required: true
+        type: string
+
+      TERRAFORM_VARFILE:
+        required: true
+        type: string
+
+      FILES_TO_TOKENIZE:
+        required: false
+        type: string
+        default: ''
+
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+
+      AZURE_TENANT_ID:
+        required: true
+
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+      TOKENS:
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-deploy:
+    name: Terraform Deploy
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.ENVIRONMENT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Tokenize Bicep Parameters
+        if: ${{ inputs.FILES_TO_TOKENIZE != '' }}
+        uses: cschleiden/replace-tokens@v1.3
+        env:
+          ${{ fromJson(secrets.TOKENS || '{}') }}
+        with:
+          files: ${{ inputs.FILES_TO_TOKENIZE }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: 'Az CLI login'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        working-directory: ${{ inputs.TERRAFORM_WORKING_DIRECTORY }}
+        shell: bash
+        run: |
+          terraform init \
+            -input=false \
+            -backend-config="${{ inputs.TERRAFORM_BACKEND }}"
+
+      - name: Terraform Apply Plan
+        working-directory: ${{ inputs.TERRAFORM_WORKING_DIRECTORY }}
+        shell: bash
+        run: |
+          terraform apply \
+            -input="false" \
+            -auto-approve \
+            -no-color \
+            -var-file="${{ inputs.TERRAFORM_VARFILE }}"
