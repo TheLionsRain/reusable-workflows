@@ -24,6 +24,11 @@ on:
         required: true
         type: string
 
+      FILES_TO_TOKENIZE:
+        required: false
+        type: string
+        default: ''
+
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -33,6 +38,9 @@ on:
 
       AZURE_SUBSCRIPTION_ID:
         required: true
+
+      TOKENS:
+        required: false
 
 permissions:
   id-token: write
@@ -47,6 +55,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Tokenize Bicep Parameters
+        if: ${{ inputs.FILES_TO_TOKENIZE != '' }}
+        uses: cschleiden/replace-tokens@v1.3
+        env:
+          ${{ fromJson(secrets.TOKENS || '{}') }}
+        with:
+          files: ${{ inputs.FILES_TO_TOKENIZE }}
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
