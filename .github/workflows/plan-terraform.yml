@@ -1,0 +1,95 @@
+---
+name: Deploy Terraform
+
+on:
+  workflow_call:
+    inputs:
+      ENVIRONMENT:
+        required: true
+        type: string
+
+      TERRAFORM_WORKING_DIRECTORY:
+        required: true
+        type: string
+
+      TERRAFORM_BACKEND:
+        required: true
+        type: string
+
+      TERRAFORM_VARFILE:
+        required: true
+        type: string
+
+      TERRAFORM_PLAN_NAME:
+        required: true
+        type: string
+
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+
+      AZURE_TENANT_ID:
+        required: true
+
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.ENVIRONMENT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: 'Az CLI login'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        working-directory: ${{ inputs.TERRAFORM_WORKING_DIRECTORY }}
+        shell: bash
+        run: |
+          terraform init \
+            -input=false \
+            -backend-config="${{ inputs.TERRAFORM_BACKEND }}"
+
+      - name: Terraform Validate
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          terraform validate \
+            -no-color
+        working-directory: ${{ inputs.TERRAFORM_WORKING_DIRECTORY }}
+
+      - name: Terraform Plan
+        working-directory: ${{ inputs.TERRAFORM_WORKING_DIRECTORY }}
+        shell: bash
+        run: |
+          terraform plan \
+            -input=false \
+            -no-color \
+            -lock=false \
+            -var-file="${{ inputs.TERRAFORM_VARFILE }}" \
+            --out="${{ inputs.TERRAFORM_PLAN_NAME }}"
+
+      - uses: borchero/terraform-plan-comment@v2
+        if: github.event_name == 'pull_request'
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          planfile: ${{ inputs.TERRAFORM_PLAN_NAME }}
+          working-directory: ${{ inputs.TERRAFORM_WORKING_DIRECTORY }}
