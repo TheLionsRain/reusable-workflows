@@ -1,5 +1,5 @@
 ---
-name: Deploy Terraform
+name: Plan Terraform
 
 on:
   workflow_call:
@@ -56,11 +56,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Tokenize Bicep Parameters
+      - name: Export tokens to environment
+        if: ${{ inputs.FILES_TO_TOKENIZE != '' }}
+        shell: bash
+        run: |
+          echo '${{ secrets.TOKENS }}' > tokens.json
+
+          # Loop over each key-value in the JSON and export it safely
+          jq -r 'to_entries[] | "\(.key)=\(.value)"' tokens.json | while IFS="=" read -r key value; do
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+
+      - name: Tokenize
         if: ${{ inputs.FILES_TO_TOKENIZE != '' }}
         uses: cschleiden/replace-tokens@v1.3
-        env:
-          ${{ fromJson(secrets.TOKENS || '{}') }}
         with:
           files: ${{ inputs.FILES_TO_TOKENIZE }}
 

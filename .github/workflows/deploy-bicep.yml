@@ -47,11 +47,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.2.2
 
+      - name: Export tokens to environment
+        if: ${{ inputs.BICEP_PARAMETERS_FILE != '' }}
+        shell: bash
+        run: |
+          echo '${{ secrets.BICEP_PARAMETERS_TOKENS }}' > tokens.json
+
+          # Loop over each key-value in the JSON and export it safely
+          jq -r 'to_entries[] | "\(.key)=\(.value)"' tokens.json | while IFS="=" read -r key value; do
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+
       - name: Tokenize Bicep Parameters
         if: ${{ inputs.BICEP_PARAMETERS_FILE != '' }}
         uses: cschleiden/replace-tokens@v1.3
-        env:
-          ${{ fromJson(secrets.BICEP_PARAMETERS_TOKENS || '{}') }}
         with:
           files: ${{ inputs.BICEP_PARAMETERS_FILE }}
 
