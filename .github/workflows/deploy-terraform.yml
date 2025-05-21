@@ -98,4 +98,3 @@ jobs:
             -auto-approve \
             -no-color \
             -var-file="${{ inputs.TERRAFORM_VARFILE }}"
-            -backend-config="${{ inputs.TERRAFORM_BACKEND }}"
